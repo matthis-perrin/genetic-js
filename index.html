@@ -11,7 +11,13 @@
   <p>Yup! There is nothing ;)</p>
 
 	<script type="text/javascript">
-		genetic.initialize();
+		genetic.initialize({
+			populationSize: 100,
+			genomeSize: 10,
+			genomeValueType: 'Integer'
+		});
+
+		genetic.start();
 	</script>
 
 </body>
