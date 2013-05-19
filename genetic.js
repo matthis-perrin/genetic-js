@@ -13,7 +13,7 @@ var genetic = (function() {
 		genomeSize: 10,
 		genomeMinValue: 0, // Inclusive
 		genomeMaxValue: 10, // Inclusive
-		genomeValueType: 'Integer', // Can be 'Integer', 'Double'
+		genomeValueType: 'Integer', // Can be 'Integer', 'Double', 'Character'
 		genomeGenerator: defaultGenomeGenerator,
 
 		fitnessCalculator: defaultFitnessCalculator 
@@ -49,7 +49,7 @@ var genetic = (function() {
 	// *********************************
 
 
-	
+
 
 
 	function extend(defaultValues, newValues)
