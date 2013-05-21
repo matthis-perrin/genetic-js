@@ -17,6 +17,8 @@ var genetic = (function() {
 		genomeGenerator: defaultGenomeGenerator,
 
 		mutationOperator: defaultMutationOperator,
+		mutationProba: 0.01,
+
 		fitnessCalculator: defaultFitnessCalculator,
 		keepBestReproduction: false // If true, we only keep a child when it's better than its parent.
 	};
@@ -29,7 +31,7 @@ var genetic = (function() {
 			if (options.genomeValueType === 'Integer')
 				randomGenome[i] = randomInteger(options.genomeMinValue, options.genomeMaxValue + 1);
 			else if (options.genomeValueType === 'Double')
-				randomGenome[i] = randomDouble(options.genomeMaxValue, options.genomeMinValue + 1);
+				randomGenome[i] = randomDouble(options.genomeMinValue, options.genomeMaxValue + 1);
 			else if (options.genomeValueType === 'Character')
 				randomGenome[i] = String.fromCharCode(randomInteger(97, 123));
 			else
@@ -80,7 +82,7 @@ var genetic = (function() {
 	// Choose a random integer between `min` (inclusive) and `max` (exclusive)
 	// and preventing `without` to be selected. if without is greater or equal
 	// to (max - 1), then (max - 1) will be prevented to be selected.
-	function randomInteger(min, max, without)
+	function randomIntegerWithout(min, max, without)
 	{
 		var random = Math.floor(Math.random() * (max - min - 1)) + min;
 		if (random >= without)
@@ -91,7 +93,7 @@ var genetic = (function() {
 
 	// Choose a random double between `min` (inclusice) and `max` (exclusive)
 	// and preventing number between `withoutMin` and `withoutMax to be selected.
-	function randomDouble(min, max, withoutMin, withoutMax)
+	function randomDoubleWithout(min, max, withoutMin, withoutMax)
 	{
 		var random = Math.random() * (max - min - withoutMax + withoutMin) + min;
 		if (random >= withoutMin)
@@ -103,8 +105,8 @@ var genetic = (function() {
 	// Return an array of `populationSize` random individual
 	// And individual is modelize this way : 
 	// {
-	//   genome: GENOME,
-	//   fitness: FITNESS
+	//   genome: array,
+	//   fitness: double
 	// }
 	function generateRandomPopulation()
 	{
@@ -133,8 +135,8 @@ var genetic = (function() {
 	}
 
 
-	// Set for each individual the propability to be selected
-	// The probability is the cumulative fitness divided by the sum of
+	// Set for each individual the cumulative propability to be selected.
+	// The cumulative probability is the cumulative fitness divided by the sum of
 	// all the fitnesses.
 	function prepareForSelection(population)
 	{
@@ -152,12 +154,12 @@ var genetic = (function() {
 	// wheel. The function `prepareForSelection` must be called before.
 	function selectTwoDifferentIndividual(population)
 	{
-		var firstRand = randomDouble(0, 1, 0, 0);
+		var firstRand = randomDouble(0, 1);
 		var firstPick = dichotomicRouletteWheel(population, firstRand);
 		
 		var botLimit = firstPick == 0 ? 0 : population[firstPick - 1].probability
 		var topLimit = population[firstPick].probability;
-		var secondRand = randomDouble(0, 1, botLimit, topLimit);
+		var secondRand = randomDoubleWithout(0, 1, botLimit, topLimit);
 		var secondPick = dichotomicRouletteWheel(population, secondRand);
 
 		return [population[firstPick], population[secondPick]];
@@ -193,7 +195,7 @@ var genetic = (function() {
 	// resulting children.
 	function simplePointCrossOver(fatherGenome, motherGenome)
 	{
-		var pivot = randomInteger(1, father.length);
+		var pivot = randomInteger(1, fatherGenome.length);
 		var sonGenome = [];
 		var daughterGenome = [];
 
@@ -230,6 +232,86 @@ var genetic = (function() {
 	}
 
 
+	// Clone an individual
+	function clone(individual)
+	{
+		return {
+			genome: individual.genome.slice(),
+			fitness: individual.fitness
+		}
+	}
+
+
+	// Make evoluate a population to the next generation
+	function evoluate(population)
+	{
+		var newPopulation = [];
+
+		// We prepare the population fir the selection
+		prepareForSelection(population);
+
+		// We select 2 new individuals for each pass in the loop
+		for (var i = 0; i < population.length; i += 2)
+		{
+			// We select two different individuals
+			var parents = selectTwoDifferentIndividual(population);
+
+			// And create two children using the parents genome
+			var childrenGenome = simplePointCrossOver(parents[0].genome, parents[1].genome);
+
+			// We make a mutation if the god of proba is okay (for each children)
+			for (var j = 0; j < 2; j++)
+				if (randomDouble(0, 1) < options.mutationProba)
+					options.mutationOperator(childrenGenome[j]);
+
+			// We can construct the children from the final genome
+			var children = [{
+				genome: childrenGenome[0],
+				fitness: options.fitnessCalculator(childrenGenome[0])
+			}, {
+				genome: childrenGenome[1],
+				fitness: options.fitnessCalculator(childrenGenome[1])
+			}];
+
+			// If we are not in the keepBestReproduction mode we just
+			// add the two children
+			if (!options.keepBestReproduction)
+			{
+				newPopulation[i] = children[0];
+				newPopulation[i + 1] = children[1];
+			}
+			// If we are in the keepBestReproduction mode we need to find
+			// the to best individual between the parents and the children
+			// to add them.
+			else
+			{
+				if (parents[0].fitness > parents[1].fitness)
+				{
+					var firstBest = parents[0];
+					var secondBest = parents[1];
+				}
+				else
+				{
+					var firstBest = parents[1];
+					var secondBest = parents[0];
+				}
+				for (j = 0; j < 2; j++)
+				{
+					if (children[j].fitness > firstBest.fitness)
+						firstBest = children[j];
+					else if (children[j].fitness > secondBest.fitness)
+						secondBest = children[j];
+				}
+
+				newPopulation[i] = firstBest;
+				newPopulation[i+1] = secondBest;
+			}
+		}
+
+		return newPopulation;
+	}
+
+
 
 	return {
 		initialize: function(newOptions) {
@@ -237,11 +319,18 @@ var genetic = (function() {
 		},
 		start: function() {
 			var population = generateRandomPopulation();
-			prepareForSelection(population);
 
-			var parents = selectTwoDifferentIndividual(population);
-			options.mutationOperator(parents[0].genome);
-			parents[0].fitness = options.fitnessCalculator(parents[0].genome);
+			for (var i = 0; i < 10000; i++)
+			{
+				// var best = getBestInPopulation(population);
+				// console.log(best.genome, best.fitness);
+				population = evoluate(population);
+			}
+
+			var best = getBestInPopulation(population);
+			console.log(population);
+			console.log('Finish!')
+			console.log(best.genome, best.fitness);
 		}
 	};
 
