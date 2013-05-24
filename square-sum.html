@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en" ng-app>
+<head>
+  <meta charset="utf-8">
+  <title>Square sum - Genetic-js</title>
+  <script type="text/javascript" language="javascript" src="genetic.js"></script>
+  <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+  <script src="http://ajax.googleapis.com/ajax/libs/angularjs/1.0.6/angular.min.js"></script>
+</head>
+
+<body id="home" ng-controller="SquareSumCtrl">
+
+		<button ng-click="nextGeneration()">Next generation</button>
+
+		<table>
+			<tr ng-repeat="individual in population">
+				<td><strong>{{formatNumber(individual.fitness)}}</strong></td>
+				<td ng-repeat="value in individual.genome">{{formatNumber(value)}}</td>
+			</tr>
+		</table>
+
+	<script type="text/javascript">
+
+		function SquareSumCtrl($scope)
+		{
+			genetic.initialize({
+				populationSize: 100,
+				genomeSize: 10,
+				genomeValueType: 'Double',
+				mutationProba: 0.5,
+				disasterFrequency: 30,
+				disasterGravity: 0.99,
+				finish: function(population) {
+					console.log(population);
+				}
+			});
+			$scope.population = genetic.getPopulation().slice(0, 20);
+
+			$scope.nextGeneration = function() {
+				for (var i = 0; i < 10000; i++)
+					genetic.nextGeneration();
+				$scope.population = genetic.getPopulation().slice(0, 20);
+			}
+
+			$scope.formatNumber = function(number) {
+				return number.toFixed(2);
+			}
+		}
+	</script>
+
+</body>
+</html>

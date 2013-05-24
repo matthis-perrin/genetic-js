@@ -1,6 +1,8 @@
 var genetic = (function() {
 
 	var EPSILON = 0.0000001;
+	var population;
+	var generationNumber = 0;
 
 
 	// *********************************
@@ -19,8 +21,14 @@ var genetic = (function() {
 		mutationOperator: defaultMutationOperator,
 		mutationProba: 0.01,
 
+		selectionMode: 'tournament', // Can be 'rouletteWheel' or 'tournament'
+
 		fitnessCalculator: defaultFitnessCalculator,
-		keepBestReproduction: false // If true, we only keep a child when it's better than its parent.
+		keepBestReproduction: false, // If true, we only keep a child when it's better than its parent.
+
+		finish: null,
+		disasterFrequency: 0,
+		disasterGravity: 0.99,
 	};
 
 	function defaultGenomeGenerator()
@@ -138,7 +146,7 @@ var genetic = (function() {
 	// Set for each individual the cumulative propability to be selected.
 	// The cumulative probability is the cumulative fitness divided by the sum of
 	// all the fitnesses.
-	function prepareForSelection(population)
+	function prepareForRouletteWheel(population)
 	{
 		var fitnessSum = 0;
 		for (var i = 0; i < population.length; i++)
@@ -150,20 +158,20 @@ var genetic = (function() {
 	}
 
 
-	// Select two differents individual using a dichotomic roulette
-	// wheel. The function `prepareForSelection` must be called before.
-	function selectTwoDifferentIndividual(population)
-	{
-		var firstRand = randomDouble(0, 1);
-		var firstPick = dichotomicRouletteWheel(population, firstRand);
+	// // Select two differents individual using a dichotomic roulette
+	// // wheel. The function `prepareForRouletteWheel` must be called before.
+	// function selectTwoDifferentIndividual(population)
+	// {
+	// 	var firstRand = randomDouble(0, 1);
+	// 	var firstPick = dichotomicRouletteWheel(population, firstRand);
 		
-		var botLimit = firstPick == 0 ? 0 : population[firstPick - 1].probability
-		var topLimit = population[firstPick].probability;
-		var secondRand = randomDoubleWithout(0, 1, botLimit, topLimit);
-		var secondPick = dichotomicRouletteWheel(population, secondRand);
+	// 	var botLimit = firstPick == 0 ? 0 : population[firstPick - 1].probability
+	// 	var topLimit = population[firstPick].probability;
+	// 	var secondRand = randomDoubleWithout(0, 1, botLimit, topLimit);
+	// 	var secondPick = dichotomicRouletteWheel(population, secondRand);
 
-		return [population[firstPick], population[secondPick]];
-	}
+	// 	return [population[firstPick], population[secondPick]];
+	// }
 
 
 	// Go through the population dichotomically and find the individual
@@ -178,16 +186,31 @@ var genetic = (function() {
 		while (true)
 		{
 			var index = Math.floor((bot + top) / 2);
-			if (index == 0) return 0;
+			if (index == 0) return population[index];
 			if (population[index].probability > randomValue)
 			{
 				if (population[index - 1].probability < randomValue)
-					return index;
+					return population[index];
 				top = index - 1;
 			}
 			else
 				bot = index + 1;
 		}
+	}
+
+
+	// Select and individual based on its rank. The first individual has a
+	// probaility p to be selected. The second one a probability p(1-p) to 
+	// be selected. More generally the n-th individual has a probability
+	// p(1 - p)^n to be selected. The population need to be sorted before
+	// calling this function
+	var p = 0.1;
+	function tournamentSelection(population)
+	{
+		for (var i = 0; i < population.length; i++)
+			if (randomDouble(0, 1) < p)
+				return population[i];
+		return population[population.length - 1];
 	}
 
 
@@ -245,16 +268,32 @@ var genetic = (function() {
 	// Make evoluate a population to the next generation
 	function evoluate(population)
 	{
+		generationNumber++;
 		var newPopulation = [];
 
-		// We prepare the population fir the selection
-		prepareForSelection(population);
+		// We prepare the population for the selection
+		if (options.selectionMode === 'rouletteWheel')
+			prepareForRouletteWheel(population);
+		else if (options.selectionMode === 'tournament')
+			sort(population);
 
 		// We select 2 new individuals for each pass in the loop
 		for (var i = 0; i < population.length; i += 2)
 		{
-			// We select two different individuals
-			var parents = selectTwoDifferentIndividual(population);
+			// We select two individuals
+			var parents = [];
+			if (options.selectionMode === 'rouletteWheel')
+			{
+				var firstRand = randomDouble(0, 1);
+				var secondRand = randomDouble(0, 1);
+				parents[0] = dichotomicRouletteWheel(population, firstRand);
+				parents[1] = dichotomicRouletteWheel(population, secondRand);
+			}
+			else if (options.selectionMode === 'tournament')
+			{
+				parents[0] = tournamentSelection(population);
+				parents[1] = tournamentSelection(population);
+			}
 
 			// And create two children using the parents genome
 			var childrenGenome = simplePointCrossOver(parents[0].genome, parents[1].genome);
@@ -308,29 +347,58 @@ var genetic = (function() {
 			}
 		}
 
+		// If we have reach the disaster freauency number, we generate a disaster
+		if (generationNumber % options.disasterFrequency == 0)
+			newPopulation = disaster(newPopulation);
+
 		return newPopulation;
 	}
 
+
+	// Sort the population using the fitness
+	function sort(population)
+	{
+		return population.sort(function(a, b) { return b.fitness - a.fitness });
+	}
+
+
+	// Simulate a disaster. A proportion (defined by disasterGravity) of the population 
+	// (from the weakest to the strongest) is killed and replaced by new random individual.
+	function disaster(population)
+	{
+		population = sort(population);
+		for (var i = population.length * (1 - options.disasterGravity); i < population.length; i++)
+		{
+			var randomGenome = options.genomeGenerator();
+			population[i] = {
+				genome: randomGenome,
+				fitness: options.fitnessCalculator(randomGenome)
+			}
+		}
+		return population;
+	}
 
 
 	return {
 		initialize: function(newOptions) {
 			extend(options, newOptions);
+			population = generateRandomPopulation();
 		},
 		start: function() {
-			var population = generateRandomPopulation();
-
-			for (var i = 0; i < 10000; i++)
-			{
-				// var best = getBestInPopulation(population);
-				// console.log(best.genome, best.fitness);
+			for (var i = 0; i < 1000; i++)
 				population = evoluate(population);
-			}
 
-			var best = getBestInPopulation(population);
-			console.log(population);
-			console.log('Finish!')
-			console.log(best.genome, best.fitness);
+			if (options.finish !== null)
+				options.finish(population);
+		},
+		nextGeneration: function() {
+			population = evoluate(population);
+		},
+		manualDisaster: function() {
+			population = disaster(population);
+		},
+		getPopulation: function() {
+			return sort(population);
 		}
 	};
 
