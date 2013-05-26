@@ -3,14 +3,19 @@
 <head>
   <meta charset="utf-8">
   <title>Square sum - Genetic-js</title>
-  <script type="text/javascript" language="javascript" src="genetic.js"></script>
+  <script src="random.js"></script>
+  <script src="selection.js"></script>
+  <script src="genetic.js"></script>
   <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
   <script src="http://ajax.googleapis.com/ajax/libs/angularjs/1.0.6/angular.min.js"></script>
 </head>
 
 <body id="home" ng-controller="SquareSumCtrl">
 
-		<button ng-click="nextGeneration()">Next generation</button>
+		<button ng-click="nextGeneration(10000)">Next generation</button>
+		<button ng-click="start()">Start</button>
+
+		<p>{{generationNumber}}</p>
 
 		<table>
 			<tr ng-repeat="individual in population">
@@ -21,30 +26,40 @@
 
 	<script type="text/javascript">
 
-		function SquareSumCtrl($scope)
+		function SquareSumCtrl($scope, $timeout)
 		{
 			genetic.initialize({
 				populationSize: 100,
 				genomeSize: 10,
 				genomeValueType: 'Double',
-				mutationProba: 0.5,
+				mutationProba: 0.7,
 				disasterFrequency: 30,
 				disasterGravity: 0.99,
 				finish: function(population) {
 					console.log(population);
 				}
 			});
-			$scope.population = genetic.getPopulation().slice(0, 20);
 
-			$scope.nextGeneration = function() {
-				for (var i = 0; i < 10000; i++)
+			$scope.population = genetic.getPopulation().slice(0, 20);
+			$scope.generationNumber = genetic.getGenerationNumber();
+
+			$scope.nextGeneration = function(nb) {
+				for (var i = 0; i < nb; i++)
+				{
 					genetic.nextGeneration();
-				$scope.population = genetic.getPopulation().slice(0, 20);
-			}
+					$scope.population = genetic.getPopulation().slice(0, 20);
+					$scope.generationNumber = genetic.getGenerationNumber();
+				}
+			};
+
+			$scope.start = function() {
+				$scope.nextGeneration(1000);
+				$timeout($scope.start, 1);
+			};
 
 			$scope.formatNumber = function(number) {
 				return number.toFixed(2);
-			}
+			};
 		}
 	</script>
 
