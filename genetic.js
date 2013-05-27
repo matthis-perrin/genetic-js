@@ -22,6 +22,7 @@ var genetic = (function() {
 		mutationProba: 0.01,
 
 		selectionMode: 'tournament', // Can be 'rouletteWheel' or 'tournament'
+		reproductionOperator: simplePointCrossOver,
 
 		fitnessCalculator: defaultFitnessCalculator,
 		keepBestReproduction: false, // If true, we only keep a child when it's better than its parent.
@@ -30,6 +31,7 @@ var genetic = (function() {
 		disasterFrequency: 0,
 		disasterGravity: 0.99,
 	};
+
 
 	function defaultGenomeGenerator()
 	{
@@ -48,12 +50,54 @@ var genetic = (function() {
 		return randomGenome;
 	}
 
+
 	function defaultFitnessCalculator(genome)
 	{
 		var squareSum = 0;
 		for (var i = 0; i < genome.length; i++)
 			squareSum += genome[i] * genome[i];
 		return 1 / (squareSum + EPSILON) // To avoid the zero division
+	}
+
+
+	// Perform a mutation on a genome
+	function defaultMutationOperator(genome)
+	{
+		var mutationPosition = randomInteger(0, genome.length);
+
+		var newValue = 0;
+		if (options.genomeValueType === 'Integer')
+			newValue = randomInteger(options.genomeMinValue, options.genomeMaxValue + 1);
+		else if (options.genomeValueType === 'Double')
+			newValue = randomDouble(options.genomeMaxValue, options.genomeMinValue + 1);
+		else if (options.genomeValueType === 'Character')
+			newValue = String.fromCharCode(randomInteger(97, 123));
+
+		genome[mutationPosition] = newValue;
+	}
+
+
+	// Perform a simple point crossover on two indivudals genomes and return the
+	// resulting children.
+	function simplePointCrossOver(fatherGenome, motherGenome)
+	{
+		var pivot = randomInteger(1, fatherGenome.length);
+		var sonGenome = [];
+		var daughterGenome = [];
+
+		for (var i = 0; i < pivot; i++)
+		{
+			sonGenome[i] = fatherGenome[i];
+			daughterGenome[i] = motherGenome[i];
+		}
+
+		for (i = pivot; i < fatherGenome.length; i++)
+		{
+			sonGenome[i] = motherGenome[i];
+			daughterGenome[i] = fatherGenome[i];
+		}
+
+		return [sonGenome, daughterGenome];
 	}
 
 	// *********************************
@@ -106,47 +150,6 @@ var genetic = (function() {
 	}
 
 
-	// Perform a simple point crossover on two indivudals genomes and return the
-	// resulting children.
-	function simplePointCrossOver(fatherGenome, motherGenome)
-	{
-		var pivot = randomInteger(1, fatherGenome.length);
-		var sonGenome = [];
-		var daughterGenome = [];
-
-		for (var i = 0; i < pivot; i++)
-		{
-			sonGenome[i] = fatherGenome[i];
-			daughterGenome[i] = motherGenome[i];
-		}
-
-		for (i = pivot; i < fatherGenome.length; i++)
-		{
-			sonGenome[i] = motherGenome[i];
-			daughterGenome[i] = fatherGenome[i];
-		}
-
-		return [sonGenome, daughterGenome];
-	}
-
-
-	// Perform a mutation on a genome
-	function defaultMutationOperator(genome)
-	{
-		var mutationPosition = randomInteger(0, genome.length);
-
-		var newValue = 0;
-		if (options.genomeValueType === 'Integer')
-			newValue = randomInteger(options.genomeMinValue, options.genomeMaxValue + 1);
-		else if (options.genomeValueType === 'Double')
-			newValue = randomDouble(options.genomeMaxValue, options.genomeMinValue + 1);
-		else if (options.genomeValueType === 'Character')
-			newValue = String.fromCharCode(randomInteger(97, 123));
-
-		genome[mutationPosition] = newValue;
-	}
-
-
 	// Clone an individual
 	function clone(individual)
 	{
@@ -188,7 +191,7 @@ var genetic = (function() {
 			}
 
 			// And create two children using the parents genome
-			var childrenGenome = simplePointCrossOver(parents[0].genome, parents[1].genome);
+			var childrenGenome = options.reproductionOperator(parents[0].genome, parents[1].genome);
 
 			// We make a mutation if the god of proba is okay (for each children)
 			for (var j = 0; j < 2; j++)
